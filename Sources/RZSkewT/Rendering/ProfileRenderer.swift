@@ -23,21 +23,26 @@ public struct ProfileRenderer {
     }
 
     /// Draw the parcel path and shade CAPE/CIN regions.
+    /// CIN (blue) is only shaded between LCL and EL, matching metpy behavior.
     public static func renderParcelPath(
         context: inout GraphicsContext,
         transform: SkewTTransform,
         parcelPath: [AtmosphericPoint],
         environmentLevels: [SoundingLevel],
-        config: SkewTConfiguration
+        config: SkewTConfiguration,
+        lclPressureHPa: Double? = nil,
+        elPressureHPa: Double? = nil
     ) {
         guard parcelPath.count >= 2 else { return }
 
         // Sort environment levels once for all interpolation calls
         let sortedEnv = environmentLevels.sorted { $0.pressureHPa > $1.pressureHPa }
 
-        // Shade CAPE (parcel warmer than environment) and CIN (parcel cooler)
+        // Shade CAPE (parcel warmer than environment) and CIN (parcel cooler, only between LCL and EL)
         shadeBuoyancy(&context, transform: transform, parcelPath: parcelPath,
-                      sortedEnvironment: sortedEnv)
+                      sortedEnvironment: sortedEnv,
+                      lclPressureHPa: lclPressureHPa,
+                      elPressureHPa: elPressureHPa)
 
         // Draw parcel path as dashed black line (on top of shading)
         var path = Path()
@@ -80,11 +85,15 @@ public struct ProfileRenderer {
         }
     }
 
+    /// Shade CAPE (red) everywhere parcel is warmer than environment.
+    /// Shade CIN (blue) only between LCL and EL where parcel is cooler (matching metpy behavior).
     private static func shadeBuoyancy(
         _ context: inout GraphicsContext,
         transform: SkewTTransform,
         parcelPath: [AtmosphericPoint],
-        sortedEnvironment: [SoundingLevel]
+        sortedEnvironment: [SoundingLevel],
+        lclPressureHPa: Double?,
+        elPressureHPa: Double?
     ) {
         for i in 0..<(parcelPath.count - 1) {
             let p = parcelPath[i].pressureHPa
@@ -96,6 +105,14 @@ public struct ProfileRenderer {
             let tEnvNext = Thermodynamics.interpolateEnvironment(at: pNext, sortedLevels: sortedEnvironment) ?? tEnv
 
             let isPositive = tParcel > tEnv
+
+            // CIN: only shade between LCL and EL (like metpy's shade_cin with dewpoint)
+            if !isPositive {
+                let lclP = lclPressureHPa ?? 0
+                let elP = elPressureHPa ?? 0
+                // Segment must be above LCL (lower pressure) and below EL (higher pressure)
+                guard p <= lclP && p >= elP else { continue }
+            }
 
             var region = Path()
             region.move(to: transform.point(tempC: tParcel, pressureHPa: p))

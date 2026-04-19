@@ -9,7 +9,10 @@ public struct SkewTTransform: Sendable {
     private let logPBottom: Double
     private let logPTop: Double
     private let logRange: Double
-    private let skewTan: Double
+    /// Skew factor in normalized coordinates, corrected for pixel aspect ratio.
+    /// Ensures isotherms visually tilt at `skewAngle` degrees from vertical
+    /// regardless of the plot's width/height ratio.
+    private let skewFactor: Double
     private let tRange: Double
 
     public struct PlotArea: Sendable {
@@ -34,8 +37,15 @@ public struct SkewTTransform: Sendable {
         self.logPBottom = log(config.pBottom)
         self.logPTop = log(config.pTop)
         self.logRange = logPBottom - logPTop
-        self.skewTan = tan(config.skewAngle * .pi / 180.0)
         self.tRange = config.tMax - config.tMin
+
+        // For an isotherm to tilt at angle θ from vertical in pixel space:
+        //   tan(θ) = (skewFactor * width) / height
+        //   skewFactor = tan(θ) * height / width
+        // This makes the visual angle independent of the plot's aspect ratio.
+        let h = Double(size.height - config.margins.top - config.margins.bottom)
+        let w = Double(size.width - config.margins.left - config.margins.right)
+        self.skewFactor = tan(config.skewAngle * .pi / 180.0) * h / w
     }
 
     // MARK: - Forward transforms
@@ -51,7 +61,7 @@ public struct SkewTTransform: Sendable {
     /// The skew makes isotherms tilt — warmer temperatures shift right at lower pressures.
     public func temperatureToX(_ tempC: Double, atPressure p: Double) -> CGFloat {
         let logFraction = (logPBottom - log(p)) / logRange
-        let skewOffset = logFraction * skewTan
+        let skewOffset = logFraction * skewFactor
         let normalizedT = (tempC - config.tMin) / tRange
         return plotArea.left + CGFloat(normalizedT + skewOffset) * plotArea.width
     }
@@ -75,7 +85,7 @@ public struct SkewTTransform: Sendable {
     /// Convert X pixel coordinate at a given pressure to temperature (°C).
     public func xToTemperature(_ x: CGFloat, atPressure p: Double) -> Double {
         let logFraction = (logPBottom - log(p)) / logRange
-        let skewOffset = logFraction * skewTan
+        let skewOffset = logFraction * skewFactor
         let normalizedT = Double((x - plotArea.left) / plotArea.width) - skewOffset
         return normalizedT * tRange + config.tMin
     }
