@@ -109,14 +109,29 @@ public struct SkewTOverlays: Sendable, Equatable, Hashable, Codable {
     public let icingZones: [OverlayBand]
     public let inversions: [InversionBand]
     public let cruiseAltitudeFt: Double?
+    /// Convective zone from LFC to EL (ft).
+    public let convectiveLfcFt: Double?
+    public let convectiveElFt: Double?
 
-    public static let empty = SkewTOverlays(cloudLayers: [], icingZones: [], inversions: [], cruiseAltitudeFt: nil)
+    public static let empty = SkewTOverlays(
+        cloudLayers: [], icingZones: [], inversions: [],
+        cruiseAltitudeFt: nil, convectiveLfcFt: nil, convectiveElFt: nil
+    )
 
-    public init(cloudLayers: [OverlayBand], icingZones: [OverlayBand], inversions: [InversionBand], cruiseAltitudeFt: Double?) {
+    public init(
+        cloudLayers: [OverlayBand],
+        icingZones: [OverlayBand],
+        inversions: [InversionBand],
+        cruiseAltitudeFt: Double?,
+        convectiveLfcFt: Double? = nil,
+        convectiveElFt: Double? = nil
+    ) {
         self.cloudLayers = cloudLayers
         self.icingZones = icingZones
         self.inversions = inversions
         self.cruiseAltitudeFt = cruiseAltitudeFt
+        self.convectiveLfcFt = convectiveLfcFt
+        self.convectiveElFt = convectiveElFt
     }
 }
 

@@ -96,6 +96,10 @@ public struct SkewTRenderer {
         BackgroundLinesRenderer.render(context: &clipped, transform: transform,
                                        lines: backgroundLines, config: config)
 
+        // Cloud / icing / inversion overlay bands (behind profiles)
+        OverlayBandsRenderer.render(context: &clipped, transform: transform,
+                                    overlays: profile.overlays, config: config)
+
         // LCL / LFC / EL marker lines (inside clip)
         drawLevelMarkers(context: &clipped, transform: transform)
 
