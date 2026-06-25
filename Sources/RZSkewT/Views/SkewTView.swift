@@ -1,15 +1,47 @@
 import SwiftUI
 
 /// SwiftUI view that renders a Skew-T log-P diagram for a sounding profile.
+///
+/// Interactivity:
+/// - Drag anywhere on the plot to move a level crosshair; an interpolated readout
+///   appears above the chart.
+/// - Pass `selectedPressureHPa` to share the cursor with a host (e.g. to sync a
+///   linked cross-section). The binding is two-way: the host can drive the crosshair
+///   and a user drag writes back into it.
+/// - `onCursorChange` fires with an interpolated ``SkewTSample`` (or `nil` when the
+///   cursor leaves the plot) so the host can react without owning the pressure state.
 public struct SkewTView: View {
     private let profile: SoundingProfile
     private let config: SkewTConfiguration
-    @State private var selectedPressureHPa: Double?
+    private let externalSelection: Binding<Double?>?
+    private let onCursorChange: ((SkewTSample?) -> Void)?
+    @State private var internalSelection: Double?
     @State private var canvasSize: CGSize = .zero
 
-    public init(profile: SoundingProfile, config: SkewTConfiguration = .default) {
+    public init(
+        profile: SoundingProfile,
+        config: SkewTConfiguration = .default,
+        selectedPressureHPa: Binding<Double?>? = nil,
+        onCursorChange: ((SkewTSample?) -> Void)? = nil
+    ) {
         self.profile = profile
         self.config = config
+        self.externalSelection = selectedPressureHPa
+        self.onCursorChange = onCursorChange
+    }
+
+    /// Effective selected pressure — host binding takes precedence when provided.
+    private var selectedPressureHPa: Double? {
+        externalSelection?.wrappedValue ?? internalSelection
+    }
+
+    private func setSelection(_ p: Double?) {
+        if let externalSelection {
+            externalSelection.wrappedValue = p
+        } else {
+            internalSelection = p
+        }
+        onCursorChange?(p.flatMap { profile.sample(atPressureHPa: $0) })
     }
 
     private var renderer: SkewTRenderer {
@@ -38,7 +70,7 @@ public struct SkewTView: View {
                 .gesture(
                     DragGesture(minimumDistance: 0)
                         .onChanged { value in
-                            selectedPressureHPa = pressureAt(y: value.location.y)
+                            setSelection(pressureAt(y: value.location.y))
                         }
                 )
             }
@@ -55,11 +87,10 @@ public struct SkewTView: View {
     }
 
     private var levelReadout: String? {
-        guard let p = selectedPressureHPa else { return nil }
-        guard let level = profile.levels.min(by: { abs($0.pressureHPa - p) < abs($1.pressureHPa - p) }) else { return nil }
-        var parts = ["\(Int(level.pressureHPa)) hPa", String(format: "%.1f°C", level.temperatureC)]
-        if let td = level.dewpointC { parts.append(String(format: "Td %.1f°C", td)) }
-        if let ws = level.windSpeedKt, let wd = level.windDirectionDeg {
+        guard let p = selectedPressureHPa, let s = profile.sample(atPressureHPa: p) else { return nil }
+        var parts = ["\(Int(s.pressureHPa.rounded())) hPa", String(format: "%.1f°C", s.temperatureC)]
+        if let td = s.dewpointC { parts.append(String(format: "Td %.1f°C", td)) }
+        if let ws = s.windSpeedKt, let wd = s.windDirectionDeg {
             parts.append(String(format: "%.0f/%03.0f", ws, wd))
         }
         return parts.joined(separator: " · ")
