@@ -72,6 +72,82 @@ public struct SoundingProfile: Sendable, Equatable, Hashable, Codable {
         self.indices = indices
         self.overlays = overlays
     }
+
+    /// Interpolate the profile at an arbitrary pressure for cursor readouts and host sync.
+    ///
+    /// Temperature, dewpoint and altitude are log-linearly interpolated between the two
+    /// bracketing levels (linear in `ln(p)`, which matches the diagram's vertical axis).
+    /// Wind is taken from the nearest level (no circular interpolation of direction).
+    /// Returns `nil` if the profile is empty.
+    public func sample(atPressureHPa p: Double) -> SkewTSample? {
+        guard !levels.isEmpty else { return nil }
+        let sorted = levels.sorted { $0.pressureHPa > $1.pressureHPa }  // high → low pressure
+
+        // Clamp the request to the available range so edge taps still read out.
+        let pMax = sorted.first!.pressureHPa
+        let pMin = sorted.last!.pressureHPa
+        let pc = min(max(p, pMin), pMax)
+
+        // Find the bracketing pair (lower index = higher pressure).
+        var lo = sorted.first!
+        var hi = sorted.last!
+        for i in 0..<(sorted.count - 1) where sorted[i].pressureHPa >= pc && sorted[i + 1].pressureHPa <= pc {
+            lo = sorted[i]
+            hi = sorted[i + 1]
+            break
+        }
+
+        // Fraction in log-pressure space between lo (high p) and hi (low p).
+        let denom = log(lo.pressureHPa) - log(hi.pressureHPa)
+        let f = denom == 0 ? 0 : (log(lo.pressureHPa) - log(pc)) / denom
+
+        func lerp(_ a: Double, _ b: Double) -> Double { a + (b - a) * f }
+        func lerpOpt(_ a: Double?, _ b: Double?) -> Double? {
+            guard let a, let b else { return f < 0.5 ? a : b }
+            return lerp(a, b)
+        }
+
+        let nearest = f < 0.5 ? lo : hi
+        let altitude = lerpOpt(lo.altitudeFt, hi.altitudeFt) ?? Thermodynamics.pressureToAltitude(pc)
+
+        return SkewTSample(
+            pressureHPa: pc,
+            altitudeFt: altitude,
+            temperatureC: lerp(lo.temperatureC, hi.temperatureC),
+            dewpointC: lerpOpt(lo.dewpointC, hi.dewpointC),
+            windSpeedKt: nearest.windSpeedKt,
+            windDirectionDeg: nearest.windDirectionDeg
+        )
+    }
+}
+
+/// An interpolated readout of a sounding at one pressure level.
+///
+/// Emitted by `SkewTView` on cursor changes so a host can drive a linked
+/// cross-section (or any other vertically-aligned view) from the same level.
+public struct SkewTSample: Sendable, Equatable, Hashable {
+    public let pressureHPa: Double
+    public let altitudeFt: Double
+    public let temperatureC: Double
+    public let dewpointC: Double?
+    public let windSpeedKt: Double?
+    public let windDirectionDeg: Double?
+
+    public init(
+        pressureHPa: Double,
+        altitudeFt: Double,
+        temperatureC: Double,
+        dewpointC: Double? = nil,
+        windSpeedKt: Double? = nil,
+        windDirectionDeg: Double? = nil
+    ) {
+        self.pressureHPa = pressureHPa
+        self.altitudeFt = altitudeFt
+        self.temperatureC = temperatureC
+        self.dewpointC = dewpointC
+        self.windSpeedKt = windSpeedKt
+        self.windDirectionDeg = windDirectionDeg
+    }
 }
 
 /// Thermodynamic indices for annotation.

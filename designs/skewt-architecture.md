@@ -20,9 +20,11 @@ RZSkewT/
 │   ├── SkewTRenderer.swift        # Main orchestrator + axes + indices panel
 │   ├── BackgroundLinesRenderer.swift  # Isotherms, adiabats, mixing ratio lines
 │   ├── ProfileRenderer.swift      # T/Td curves, parcel path, CAPE/CIN shading
-│   └── WindBarbRenderer.swift     # WMO standard wind barbs
+│   ├── WindBarbRenderer.swift     # WMO standard wind barbs
+│   └── OverlayBandsRenderer.swift # Cloud/icing/inversion/convective altitude bands
 └── Views/
-    └── SkewTView.swift            # SwiftUI Canvas wrapper + preview + accessibility
+    ├── SkewTView.swift            # SwiftUI Canvas wrapper + interactivity + accessibility
+    └── SkewTVariablePanel.swift   # Side-panel variable-vs-pressure plot (1 or 2 axes)
 ```
 
 ## Usage Examples
@@ -37,6 +39,24 @@ let profile = SoundingProfile(levels: [
 ])
 SkewTView(profile: profile)
     .aspectRatio(1.0, contentMode: .fit)
+
+// Linked cursor for host cross-section sync (two-way binding + callback)
+@State private var cursorP: Double?     // shared with a cross-section view
+SkewTView(profile: profile, selectedPressureHPa: $cursorP) { sample in
+    // sample is an interpolated SkewTSample? (nil when cursor leaves the plot)
+    host.moveCrossSection(toAltitudeFt: sample?.altitudeFt)
+}
+
+// Side-panel variable plot — host picks variables; line up in an HStack.
+// 1 variable → single x-axis (iPhone); 2 → dual x-axis (iPad).
+HStack(spacing: 0) {
+    SkewTView(profile: profile, selectedPressureHPa: $cursorP)
+    SkewTVariablePanel(
+        profile: profile,
+        variables: [SkewTVariable(id: "wind", label: "Wind", unit: "kt") { $0.windSpeedKt }],
+        selectedPressureHPa: cursorP        // shared crosshair
+    ).frame(width: 140)
+}
 
 // With custom config
 let config = SkewTConfiguration(pTop: 250, tMin: -50, tMax: 40)
@@ -67,6 +87,10 @@ let result = Thermodynamics.computeCAPECIN(environmentLevels: levels, parcelPath
 **Axis ranges match MetPy defaults**: pBottom=1050, pTop=100 hPa, T=-40 to +50°C, skew angle=45°. FL labels on right axis via standard atmosphere.
 
 **Protocol conformances**: All model types conform to `Sendable`, `Equatable`, `Hashable`, and `Codable` for Swift 6 concurrency safety, SwiftUI diffing, and JSON serialization.
+
+**Host/package split for interactivity**: `SkewTView` works standalone (internal `@State` cursor) but exposes an optional two-way `selectedPressureHPa: Binding<Double?>` plus an `onCursorChange: (SkewTSample?) -> Void` callback. The host owns no rendering — it just shares a pressure value to drive a linked cross-section, and reads back an interpolated `SkewTSample` (T/Td/wind/altitude). The same binding feeds `SkewTVariablePanel` so its crosshair lines up. `SoundingProfile.sample(atPressureHPa:)` does the log-linear interpolation and is the single tested source of truth for readouts.
+
+**Side panel shares the vertical axis**: `SkewTVariablePanel` is a sibling `Canvas` built from the same `SkewTConfiguration`, so identical top/bottom margins make its pressure rows align with the Skew-T in an `HStack`. One variable → single bottom axis (iPhone); two → dual axis (second labelled on top, iPad). The host chooses variables via closures (`SkewTVariable.value`), keeping units/derivations out of the package.
 
 ## Coordinate Transform
 
@@ -99,8 +123,9 @@ Background lines precomputed at init: ~10 dry adiabats (θ 250-450K, step 20K), 
 
 `SkewTRenderer.render()` draws in order (back to front):
 1. Background fill
-2. **Clipped to plot area**: isotherms, 0°C highlight, dry adiabats, moist adiabats (dashed), mixing ratio lines with labels, LCL/LFC/EL/freezing level markers (dashed lines with label pills), CAPE/CIN shading, parcel path (dashed black), T profile (red), Td profile (green)
+2. **Clipped to plot area**: isotherms, 0°C highlight, dry adiabats, moist adiabats (dashed), mixing ratio lines with labels, **overlay bands (cloud/icing/inversion/convective LFC→EL, drawn behind the profiles)**, LCL/LFC/EL/freezing level markers (dashed lines with label pills), CAPE/CIN shading, parcel path (dashed black), T profile (red), Td profile (green)
 3. **Outside clip**: axes (hPa left, FL right, °C bottom), wind barbs (right column), indices text panel (top-right)
+4. **`SkewTView` overlay (interactive)**: drag crosshair at the selected pressure, drawn on top of the canvas after `render()`.
 
 ## Gotchas
 

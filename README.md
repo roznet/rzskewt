@@ -6,6 +6,9 @@ A Swift package for rendering interactive [Skew-T log-P diagrams](https://en.wik
 
 - **Full thermodynamic engine** — saturation vapor pressure (Bolton/Magnus), potential temperature, dry & moist adiabats, mixing ratio lines, LCL, parcel path, CAPE/CIN with virtual temperature correction
 - **Standard Skew-T rendering** — isotherms, isobars, dry/moist adiabats, mixing ratio lines, temperature & dewpoint profiles, WMO wind barbs, CAPE/CIN shading
+- **Overlay bands** — cloud, icing, inversion and convective (LFC→EL) altitude bands drawn behind the profiles
+- **Interactive** — drag crosshair with interpolated level readout, two-way `selectedPressureHPa` binding and `onCursorChange` callback for host cross-section sync
+- **Side-panel variable plot** — plot host-chosen variables against the shared pressure axis (single axis on iPhone, dual on iPad)
 - **Pure SwiftUI** — renders via `Canvas` with no UIKit or external dependencies
 - **Fully configurable** — axis ranges, colors, line widths, margins all injectable via `SkewTConfiguration`
 - **Swift 6 ready** — all types are `Sendable`; models are `Equatable`, `Hashable`, and `Codable`
@@ -98,6 +101,49 @@ let result = Thermodynamics.computeCAPECIN(
     environmentLevels: levels, parcelPath: path)
 // result.cape, result.cin
 ```
+
+### Interactivity & linked cursor
+
+`SkewTView` supports a drag crosshair with an interpolated level readout out of the box. To
+sync the cursor with a host view (e.g. a route cross-section), pass a two-way binding and/or
+an `onCursorChange` callback:
+
+```swift
+@State private var cursorPressureHPa: Double?
+
+SkewTView(profile: profile, selectedPressureHPa: $cursorPressureHPa) { sample in
+    // sample is an interpolated SkewTSample? (nil when the cursor leaves the plot)
+    if let s = sample {
+        host.moveCrossSection(toAltitudeFt: s.altitudeFt)   // T/Td/wind also available
+    }
+}
+```
+
+The binding is bidirectional: the host can move the crosshair by setting `cursorPressureHPa`,
+and a user drag writes back into it.
+
+### Side-panel variable plot
+
+`SkewTVariablePanel` plots one or two host-chosen variables against the same log-pressure axis,
+so it lines up with the Skew-T in an `HStack`. One variable renders a single x-axis (iPhone);
+two render a dual axis (iPad). Pass the shared cursor for a linked crosshair.
+
+```swift
+HStack(spacing: 0) {
+    SkewTView(profile: profile, selectedPressureHPa: $cursorPressureHPa)
+    SkewTVariablePanel(
+        profile: profile,
+        variables: [
+            SkewTVariable(id: "wind", label: "Wind", unit: "kt", color: .purple) { $0.windSpeedKt },
+        ],
+        selectedPressureHPa: cursorPressureHPa
+    )
+    .frame(width: 140)
+}
+```
+
+The host supplies each variable's value via a closure, so units and derived quantities stay
+out of the package.
 
 ### Dark mode
 
