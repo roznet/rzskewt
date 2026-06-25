@@ -132,7 +132,7 @@ public struct SoundingProfile: Sendable, Equatable, Hashable, Codable {
 ///
 /// Emitted by `SkewTView` on cursor changes so a host can drive a linked
 /// cross-section (or any other vertically-aligned view) from the same level.
-public struct SkewTSample: Sendable, Equatable, Hashable {
+public struct SkewTSample: Sendable, Equatable, Hashable, Codable {
     public let pressureHPa: Double
     public let altitudeFt: Double
     public let temperatureC: Double

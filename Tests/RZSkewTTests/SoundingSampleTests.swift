@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import RZSkewT
 
@@ -62,6 +63,14 @@ struct SoundingSampleTests {
         let s = try #require(noAlt.sample(atPressureHPa: 700))
         let expected = Thermodynamics.pressureToAltitude(700)
         #expect(abs(s.altitudeFt - expected) < 1e-6)
+    }
+
+    @Test("SkewTSample conforms to Codable roundtrip")
+    func sampleCodableRoundtrip() throws {
+        let s = try #require(profile.sample(atPressureHPa: 700))
+        let data = try JSONEncoder().encode(s)
+        let decoded = try JSONDecoder().decode(SkewTSample.self, from: data)
+        #expect(decoded == s)
     }
 
     @Test("One-sided optional uses the present neighbour, even when nearer the missing one")

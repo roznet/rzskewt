@@ -101,4 +101,17 @@ public struct SkewTTransform: Sendable {
     public var visiblePressureLevels: [Double] {
         Self.standardPressureLevels.filter { $0 <= config.pBottom && $0 >= config.pTop }
     }
+
+    // MARK: - Cursor
+
+    /// Endpoints of a horizontal cursor line spanning the plot at the given pressure,
+    /// or `nil` if that pressure falls outside the plot area. Shared by `SkewTView`
+    /// and `SkewTVariablePanel` so the linked crosshair geometry stays identical.
+    /// (Returns plain points rather than a SwiftUI `Path` to keep this type
+    /// dependency-free.)
+    public func crosshairEndpoints(atPressureHPa p: Double) -> (CGPoint, CGPoint)? {
+        let y = pressureToY(p)
+        guard y >= plotArea.top && y <= plotArea.bottom else { return nil }
+        return (CGPoint(x: plotArea.left, y: y), CGPoint(x: plotArea.right, y: y))
+    }
 }

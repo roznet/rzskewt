@@ -143,7 +143,8 @@ HStack(spacing: 0) {
 ```
 
 The host supplies each variable's value via a closure, so units and derived quantities stay
-out of the package.
+out of the package. Construct both views with the **same `SkewTConfiguration`** — row
+alignment depends on identical axis ranges and margins.
 
 ### Dark mode
 

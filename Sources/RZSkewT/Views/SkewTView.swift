@@ -77,6 +77,9 @@ public struct SkewTView: View {
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background(.ultraThinMaterial)
+                    // Keep the banner out of hit-testing so a drag starting on it
+                    // still moves the crosshair instead of being swallowed.
+                    .allowsHitTesting(false)
             }
         }
         .accessibilityLabel(accessibilityDescription)
@@ -102,13 +105,8 @@ public struct SkewTView: View {
 
     private func drawCrosshair(context: inout GraphicsContext, size: CGSize, pressureHPa: Double) {
         let transform = SkewTTransform(size: size, config: config)
-        let plot = transform.plotArea
-        let y = transform.pressureToY(pressureHPa)
-        guard y >= plot.top && y <= plot.bottom else { return }
-        var path = Path()
-        path.move(to: CGPoint(x: plot.left, y: y))
-        path.addLine(to: CGPoint(x: plot.right, y: y))
-        context.stroke(path, with: .color(.red.opacity(0.7)), lineWidth: 1)
+        guard let (a, b) = transform.crosshairEndpoints(atPressureHPa: pressureHPa) else { return }
+        context.strokeCrosshair(from: a, to: b)
     }
 
     private var accessibilityDescription: String {
