@@ -63,4 +63,18 @@ struct SoundingSampleTests {
         let expected = Thermodynamics.pressureToAltitude(700)
         #expect(abs(s.altitudeFt - expected) < 1e-6)
     }
+
+    @Test("One-sided optional uses the present neighbour, even when nearer the missing one")
+    func oneSidedOptionalFallback() throws {
+        // Only the high-pressure level carries altitude/dewpoint; sample nearer the
+        // upper (missing) level. The present neighbour should be used rather than
+        // discarded (no standard-atmosphere fallback for altitude).
+        let partial = SoundingProfile(levels: [
+            SoundingLevel(pressureHPa: 1000, altitudeFt: 0, temperatureC: 15, dewpointC: 10),
+            SoundingLevel(pressureHPa: 500, temperatureC: -20),
+        ])
+        let s = try #require(partial.sample(atPressureHPa: 550))  // f > 0.5, nearer 500 hPa
+        #expect(s.altitudeFt == 0)
+        #expect(s.dewpointC == 10)
+    }
 }

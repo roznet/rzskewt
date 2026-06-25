@@ -81,7 +81,10 @@ public struct SoundingProfile: Sendable, Equatable, Hashable, Codable {
     /// Returns `nil` if the profile is empty.
     public func sample(atPressureHPa p: Double) -> SkewTSample? {
         guard !levels.isEmpty else { return nil }
-        let sorted = levels.sorted { $0.pressureHPa > $1.pressureHPa }  // high → low pressure
+        // Soundings are normally supplied high → low pressure; only pay for a sort when
+        // they aren't, so the interactive (per-drag) path stays O(n) in the common case.
+        let isDescending = zip(levels, levels.dropFirst()).allSatisfy { $0.pressureHPa >= $1.pressureHPa }
+        let sorted = isDescending ? levels : levels.sorted { $0.pressureHPa > $1.pressureHPa }
 
         // Clamp the request to the available range so edge taps still read out.
         let pMax = sorted.first!.pressureHPa
@@ -103,8 +106,12 @@ public struct SoundingProfile: Sendable, Equatable, Hashable, Codable {
 
         func lerp(_ a: Double, _ b: Double) -> Double { a + (b - a) * f }
         func lerpOpt(_ a: Double?, _ b: Double?) -> Double? {
-            guard let a, let b else { return f < 0.5 ? a : b }
-            return lerp(a, b)
+            switch (a, b) {
+            case let (a?, b?): return lerp(a, b)   // both present → interpolate
+            case let (a?, nil): return a           // only one present → use it rather than discard
+            case let (nil, b?): return b
+            default: return nil                    // neither present
+            }
         }
 
         let nearest = f < 0.5 ? lo : hi

@@ -81,8 +81,9 @@ public struct SkewTVariablePanel: View {
         let rect = CGRect(x: plot.left, y: plot.top, width: plot.width, height: plot.height)
         context.stroke(Path(rect), with: .color(.gray.opacity(0.4)), lineWidth: config.gridLineWidth)
 
-        // Pressure gridlines aligned with the Skew-T's vertical axis.
-        for p in [1000.0, 850, 700, 500, 300, 200] where p >= config.pTop && p <= config.pBottom {
+        // Pressure gridlines aligned with the Skew-T's vertical axis — same level set
+        // as the diagram (single source of truth) so the rows match exactly.
+        for p in transform.visiblePressureLevels {
             let y = transform.pressureToY(p)
             var line = Path()
             line.move(to: CGPoint(x: plot.left, y: y))

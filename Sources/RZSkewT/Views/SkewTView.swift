@@ -49,7 +49,27 @@ public struct SkewTView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 0) {
+        // The readout is an overlay (not a VStack row) so the Canvas keeps the full
+        // available height. This matters when placed beside a ``SkewTVariablePanel``
+        // in an `HStack`: both canvases then share identical heights and margins, so
+        // their pressure rows line up even while a readout is showing.
+        GeometryReader { geo in
+            Canvas { context, size in
+                renderer.render(context: &context, size: size)
+                if let p = selectedPressureHPa {
+                    drawCrosshair(context: &context, size: size, pressureHPa: p)
+                }
+            }
+            .onAppear { canvasSize = geo.size }
+            .onChange(of: geo.size) { _, newSize in canvasSize = newSize }
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        setSelection(pressureAt(y: value.location.y))
+                    }
+            )
+        }
+        .overlay(alignment: .top) {
             if let readout = levelReadout {
                 Text(readout)
                     .font(.caption.monospacedDigit())
@@ -58,24 +78,8 @@ public struct SkewTView: View {
                     .padding(.vertical, 4)
                     .background(.ultraThinMaterial)
             }
-            GeometryReader { geo in
-                Canvas { context, size in
-                    renderer.render(context: &context, size: size)
-                    if let p = selectedPressureHPa {
-                        drawCrosshair(context: &context, size: size, pressureHPa: p)
-                    }
-                }
-                .onAppear { canvasSize = geo.size }
-                .onChange(of: geo.size) { _, newSize in canvasSize = newSize }
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { value in
-                            setSelection(pressureAt(y: value.location.y))
-                        }
-                )
-            }
-            .accessibilityLabel(accessibilityDescription)
         }
+        .accessibilityLabel(accessibilityDescription)
     }
 
     private func pressureAt(y: CGFloat) -> Double? {
