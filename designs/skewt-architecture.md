@@ -134,7 +134,10 @@ Background lines precomputed at init: ~10 dry adiabats (θ 250-450K, step 20K), 
 - `SoundingLevel.dewpointC` is optional — profiles without dewpoint still render T curve and wind barbs.
 - Wind barbs use meteorological convention: direction is where wind blows FROM.
 - Default colors are optimized for light mode. Pass custom `SkewTConfiguration` for dark mode.
-- Tests are pinned against textbook values (Stull 2000 LCL, tropical CAPE range) — changes to thermodynamic code should pass all 47 tests.
+- Overlay band colors/alphas + the cursor color live in `config.overlayStyle` (`SkewTOverlayStyle`) — a single themeable source of truth, not magic numbers in the renderer. Cloud bands default to a neutral grey with a hairline border (a white fill is invisible on the near-white background).
+- Overlay band geometry: the *higher* altitude (lower pressure) is the *top* of the band (smaller y). `OverlayBandsRenderer.bandRect` is the pure, tested helper for this — get the min/max-pressure mapping wrong and bands silently fail the `yBottom > yTop` guard and don't draw.
+- `SkewTView` builds its `SkewTRenderer` once in `init` (a stored `let`), not in a computed property — otherwise the cached background lines recompute on every drag frame.
+- Tests are pinned against textbook values (Stull 2000 LCL, tropical CAPE range) — changes to thermodynamic code should pass the full suite (66 tests).
 
 ## References
 
