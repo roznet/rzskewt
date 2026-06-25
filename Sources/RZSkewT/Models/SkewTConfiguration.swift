@@ -25,6 +25,9 @@ public struct SkewTConfiguration: Sendable {
     public let gridLineWidth: CGFloat
     public let profileLineWidth: CGFloat
 
+    // Overlay bands + cursor styling
+    public let overlayStyle: SkewTOverlayStyle
+
     public struct Margins: Sendable, Equatable, Hashable {
         public let left: CGFloat
         public let right: CGFloat
@@ -60,7 +63,8 @@ public struct SkewTConfiguration: Sendable {
         dewpointColor: Color = .green,
         windBarbColor: Color = .primary,
         gridLineWidth: CGFloat = 0.5,
-        profileLineWidth: CGFloat = 2.0
+        profileLineWidth: CGFloat = 2.0,
+        overlayStyle: SkewTOverlayStyle = .default
     ) {
         self.pBottom = pBottom
         self.pTop = pTop
@@ -79,5 +83,6 @@ public struct SkewTConfiguration: Sendable {
         self.windBarbColor = windBarbColor
         self.gridLineWidth = gridLineWidth
         self.profileLineWidth = profileLineWidth
+        self.overlayStyle = overlayStyle
     }
 }

@@ -15,6 +15,10 @@ public struct SkewTView: View {
     private let config: SkewTConfiguration
     private let externalSelection: Binding<Double?>?
     private let onCursorChange: ((SkewTSample?) -> Void)?
+    /// Built once per view value so the cached background lines (moist-adiabat RK2
+    /// integration et al.) aren't recomputed on every drag frame. `@State` changes
+    /// re-run `body` but not `init`, so the renderer survives cursor updates.
+    private let renderer: SkewTRenderer
     @State private var internalSelection: Double?
     @State private var canvasSize: CGSize = .zero
 
@@ -28,6 +32,7 @@ public struct SkewTView: View {
         self.config = config
         self.externalSelection = selectedPressureHPa
         self.onCursorChange = onCursorChange
+        self.renderer = SkewTRenderer(profile: profile, config: config)
     }
 
     /// Effective selected pressure — host binding takes precedence when provided.
@@ -42,10 +47,6 @@ public struct SkewTView: View {
             internalSelection = p
         }
         onCursorChange?(p.flatMap { profile.sample(atPressureHPa: $0) })
-    }
-
-    private var renderer: SkewTRenderer {
-        SkewTRenderer(profile: profile, config: config)
     }
 
     public var body: some View {
@@ -106,7 +107,7 @@ public struct SkewTView: View {
     private func drawCrosshair(context: inout GraphicsContext, size: CGSize, pressureHPa: Double) {
         let transform = SkewTTransform(size: size, config: config)
         guard let (a, b) = transform.crosshairEndpoints(atPressureHPa: pressureHPa) else { return }
-        context.strokeCrosshair(from: a, to: b)
+        context.strokeCrosshair(from: a, to: b, color: config.overlayStyle.cursorColor)
     }
 
     private var accessibilityDescription: String {

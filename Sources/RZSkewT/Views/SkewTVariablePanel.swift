@@ -166,7 +166,7 @@ public struct SkewTVariablePanel: View {
 
     private func drawCrosshair(context: inout GraphicsContext, transform: SkewTTransform, pressureHPa: Double) {
         guard let (a, b) = transform.crosshairEndpoints(atPressureHPa: pressureHPa) else { return }
-        context.strokeCrosshair(from: a, to: b)
+        context.strokeCrosshair(from: a, to: b, color: config.overlayStyle.cursorColor)
     }
 
     // MARK: - Helpers
