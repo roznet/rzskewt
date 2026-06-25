@@ -40,6 +40,10 @@ public struct SkewTVariable: Identifiable, Sendable {
 ///
 /// Pass `selectedPressureHPa` to share the crosshair with a ``SkewTView`` for a
 /// linked readout across both views.
+///
+/// - Important: Construct this panel with the **same `SkewTConfiguration`** as the
+///   adjacent ``SkewTView``. Row alignment depends on identical axis ranges and
+///   top/bottom margins; a mismatched `config` silently misaligns the pressure rows.
 public struct SkewTVariablePanel: View {
     private let profile: SoundingProfile
     private let variables: [SkewTVariable]
@@ -114,12 +118,24 @@ public struct SkewTVariablePanel: View {
             return plot.left + CGFloat(min(max(frac, 0), 1)) * plot.width
         }
 
-        var path = Path()
-        for (i, s) in samples.enumerated() {
+        if samples.count == 1 {
+            // A single point has no line segment to stroke — draw a dot so the
+            // value is still visible.
+            let s = samples[0]
             let pt = CGPoint(x: xFor(s.v), y: transform.pressureToY(s.p))
-            if i == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
+            let r = config.profileLineWidth + 1
+            context.fill(
+                Path(ellipseIn: CGRect(x: pt.x - r, y: pt.y - r, width: 2 * r, height: 2 * r)),
+                with: .color(variable.color)
+            )
+        } else {
+            var path = Path()
+            for (i, s) in samples.enumerated() {
+                let pt = CGPoint(x: xFor(s.v), y: transform.pressureToY(s.p))
+                if i == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
+            }
+            context.stroke(path, with: .color(variable.color), lineWidth: config.profileLineWidth)
         }
-        context.stroke(path, with: .color(variable.color), lineWidth: config.profileLineWidth)
 
         drawAxisLabels(
             variable: variable, bounds: bounds, atTop: axisIndex == 1,
@@ -149,13 +165,8 @@ public struct SkewTVariablePanel: View {
     }
 
     private func drawCrosshair(context: inout GraphicsContext, transform: SkewTTransform, pressureHPa: Double) {
-        let plot = transform.plotArea
-        let y = transform.pressureToY(pressureHPa)
-        guard y >= plot.top && y <= plot.bottom else { return }
-        var path = Path()
-        path.move(to: CGPoint(x: plot.left, y: y))
-        path.addLine(to: CGPoint(x: plot.right, y: y))
-        context.stroke(path, with: .color(.red.opacity(0.7)), lineWidth: 1)
+        guard let (a, b) = transform.crosshairEndpoints(atPressureHPa: pressureHPa) else { return }
+        context.strokeCrosshair(from: a, to: b)
     }
 
     // MARK: - Helpers
