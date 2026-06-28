@@ -12,7 +12,14 @@ public struct SkewTVariable: Identifiable, Sendable {
     public let color: Color
     /// Fixed x-axis range. When `nil` the panel auto-scales to the data with a small margin.
     public let range: ClosedRange<Double>?
+    /// When true the auto-scaled range is symmetrized around zero and a dashed
+    /// zero reference line is drawn (for signed quantities like headwind/lapse).
+    public let zeroLine: Bool
     public let value: @Sendable (SoundingLevel) -> Double?
+    /// Optional second line plotted on the SAME axis as `value` (e.g. crosswind
+    /// alongside headwind), in `secondaryColor`. The shared range spans both.
+    public let secondaryValue: (@Sendable (SoundingLevel) -> Double?)?
+    public let secondaryColor: Color?
 
     public init(
         id: String,
@@ -20,6 +27,9 @@ public struct SkewTVariable: Identifiable, Sendable {
         unit: String = "",
         color: Color = .accentColor,
         range: ClosedRange<Double>? = nil,
+        zeroLine: Bool = false,
+        secondaryValue: (@Sendable (SoundingLevel) -> Double?)? = nil,
+        secondaryColor: Color? = nil,
         value: @escaping @Sendable (SoundingLevel) -> Double?
     ) {
         self.id = id
@@ -27,6 +37,9 @@ public struct SkewTVariable: Identifiable, Sendable {
         self.unit = unit
         self.color = color
         self.range = range
+        self.zeroLine = zeroLine
+        self.secondaryValue = secondaryValue
+        self.secondaryColor = secondaryColor
         self.value = value
     }
 }
@@ -103,21 +116,67 @@ public struct SkewTVariablePanel: View {
         transform: SkewTTransform
     ) {
         let plot = transform.plotArea
-        let samples = profile.levels
-            .compactMap { level -> (p: Double, v: Double)? in
-                guard let v = variable.value(level) else { return nil }
-                return (level.pressureHPa, v)
-            }
-            .sorted { $0.p > $1.p }
-        guard samples.count >= 1 else { return }
+        let primary = samples(for: variable.value)
+        let secondary = variable.secondaryValue.map { samples(for: $0) } ?? []
+        guard !primary.isEmpty || !secondary.isEmpty else { return }
 
-        let bounds = variable.range ?? autoRange(samples.map(\.v))
+        // Shared range spans both lines so primary + secondary use one scale.
+        let bounds: ClosedRange<Double>
+        if let fixed = variable.range {
+            bounds = fixed
+        } else {
+            var range = autoRange(primary.map(\.v) + secondary.map(\.v))
+            if variable.zeroLine {
+                let absMax = Swift.max(abs(range.lowerBound), abs(range.upperBound))
+                range = (absMax == 0 ? -1 : -absMax)...(absMax == 0 ? 1 : absMax)
+            }
+            bounds = range
+        }
         let span = bounds.upperBound - bounds.lowerBound
         func xFor(_ v: Double) -> CGFloat {
             let frac = span == 0 ? 0.5 : (v - bounds.lowerBound) / span
             return plot.left + CGFloat(min(max(frac, 0), 1)) * plot.width
         }
 
+        // Dashed zero reference for signed quantities.
+        if variable.zeroLine, bounds.lowerBound < 0, bounds.upperBound > 0 {
+            let zx = xFor(0)
+            var zero = Path()
+            zero.move(to: CGPoint(x: zx, y: plot.top))
+            zero.addLine(to: CGPoint(x: zx, y: plot.bottom))
+            context.stroke(zero, with: .color(.gray.opacity(0.5)),
+                           style: StrokeStyle(lineWidth: config.gridLineWidth, dash: [2, 2]))
+        }
+
+        drawLine(primary, color: variable.color, xFor: xFor, context: &context, transform: transform)
+        if let secondaryColor = variable.secondaryColor, !secondary.isEmpty {
+            drawLine(secondary, color: secondaryColor, xFor: xFor, context: &context, transform: transform)
+        }
+
+        drawAxisLabels(
+            variable: variable, bounds: bounds, atTop: axisIndex == 1,
+            context: &context, transform: transform
+        )
+    }
+
+    /// Sounding samples for a value closure, sorted high→low pressure.
+    private func samples(for value: @Sendable (SoundingLevel) -> Double?) -> [(p: Double, v: Double)] {
+        profile.levels
+            .compactMap { level -> (p: Double, v: Double)? in
+                guard let v = value(level) else { return nil }
+                return (level.pressureHPa, v)
+            }
+            .sorted { $0.p > $1.p }
+    }
+
+    private func drawLine(
+        _ samples: [(p: Double, v: Double)],
+        color: Color,
+        xFor: (Double) -> CGFloat,
+        context: inout GraphicsContext,
+        transform: SkewTTransform
+    ) {
+        guard !samples.isEmpty else { return }
         if samples.count == 1 {
             // A single point has no line segment to stroke — draw a dot so the
             // value is still visible.
@@ -126,7 +185,7 @@ public struct SkewTVariablePanel: View {
             let r = config.profileLineWidth + 1
             context.fill(
                 Path(ellipseIn: CGRect(x: pt.x - r, y: pt.y - r, width: 2 * r, height: 2 * r)),
-                with: .color(variable.color)
+                with: .color(color)
             )
         } else {
             var path = Path()
@@ -134,13 +193,8 @@ public struct SkewTVariablePanel: View {
                 let pt = CGPoint(x: xFor(s.v), y: transform.pressureToY(s.p))
                 if i == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
             }
-            context.stroke(path, with: .color(variable.color), lineWidth: config.profileLineWidth)
+            context.stroke(path, with: .color(color), lineWidth: config.profileLineWidth)
         }
-
-        drawAxisLabels(
-            variable: variable, bounds: bounds, atTop: axisIndex == 1,
-            context: &context, transform: transform
-        )
     }
 
     private func drawAxisLabels(

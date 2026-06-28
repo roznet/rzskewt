@@ -22,6 +22,10 @@ public struct SkewTConfiguration: Sendable {
     public let temperatureColor: Color
     public let dewpointColor: Color
     public let windBarbColor: Color
+    /// When false, the wind-barb column to the right of the plot is not drawn.
+    /// Hosts that surface wind another way (e.g. a HW/XW side-panel variable) can
+    /// switch it off to reclaim the right margin. Default true.
+    public let showWindBarbs: Bool
     public let gridLineWidth: CGFloat
     public let profileLineWidth: CGFloat
 
@@ -62,6 +66,7 @@ public struct SkewTConfiguration: Sendable {
         temperatureColor: Color = .red,
         dewpointColor: Color = .green,
         windBarbColor: Color = .primary,
+        showWindBarbs: Bool = true,
         gridLineWidth: CGFloat = 0.5,
         profileLineWidth: CGFloat = 2.0,
         overlayStyle: SkewTOverlayStyle = .default
@@ -81,6 +86,7 @@ public struct SkewTConfiguration: Sendable {
         self.temperatureColor = temperatureColor
         self.dewpointColor = dewpointColor
         self.windBarbColor = windBarbColor
+        self.showWindBarbs = showWindBarbs
         self.gridLineWidth = gridLineWidth
         self.profileLineWidth = profileLineWidth
         self.overlayStyle = overlayStyle

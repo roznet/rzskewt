@@ -123,9 +123,11 @@ public struct SkewTRenderer {
         // Axes (outside clip)
         drawAxes(context: &context, transform: transform)
 
-        // Wind barbs (outside clip, to the right)
-        WindBarbRenderer.render(context: &context, transform: transform,
-                                profile: profile, config: config)
+        // Wind barbs (outside clip, to the right) — host-toggleable.
+        if config.showWindBarbs {
+            WindBarbRenderer.render(context: &context, transform: transform,
+                                    profile: profile, config: config)
+        }
 
         // Indices text panel
         drawIndices(context: &context, transform: transform)
