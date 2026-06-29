@@ -9,11 +9,21 @@ public struct SkewTTransform: Sendable {
     private let logPBottom: Double
     private let logPTop: Double
     private let logRange: Double
-    /// Skew factor in normalized coordinates, corrected for pixel aspect ratio.
-    /// Ensures isotherms visually tilt at `skewAngle` degrees from vertical
-    /// regardless of the plot's width/height ratio.
+    /// Skew factor in normalized coordinates, corrected for pixel aspect ratio
+    /// and clamped at ``maxSkewFactor``. Isotherms visually tilt at `skewAngle`
+    /// degrees from vertical on plots that are square-or-wider; on tall/narrow
+    /// plots the tilt is capped so data stays on the chart (see `init`).
     private let skewFactor: Double
     private let tRange: Double
+
+    /// Upper bound on the normalized skew factor. At `1.0` an isotherm shifts by
+    /// at most the full plot width over the full plot height — the classic
+    /// square-aspect Skew-T. Without this cap, a tall/narrow plot (height ≫
+    /// width, e.g. an embedded iPhone-portrait Skew-T) yields a skew factor > 1,
+    /// which tilts isotherms so steeply that the cold upper-air temperature and
+    /// dewpoint lines run off the right edge. Wide plots are unaffected (their
+    /// factor is already below 1).
+    static let maxSkewFactor: Double = 1.0
 
     public struct PlotArea: Sendable {
         public let left: CGFloat
@@ -42,10 +52,12 @@ public struct SkewTTransform: Sendable {
         // For an isotherm to tilt at angle θ from vertical in pixel space:
         //   tan(θ) = (skewFactor * width) / height
         //   skewFactor = tan(θ) * height / width
-        // This makes the visual angle independent of the plot's aspect ratio.
+        // This makes the visual angle independent of the plot's aspect ratio —
+        // but on a tall/narrow plot it grows past 1 and pushes the cold
+        // upper-air data off the right edge, so clamp it at `maxSkewFactor`.
         let h = Double(size.height - config.margins.top - config.margins.bottom)
         let w = Double(size.width - config.margins.left - config.margins.right)
-        self.skewFactor = tan(config.skewAngle * .pi / 180.0) * h / w
+        self.skewFactor = min(tan(config.skewAngle * .pi / 180.0) * h / w, Self.maxSkewFactor)
     }
 
     // MARK: - Forward transforms
