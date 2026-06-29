@@ -69,4 +69,45 @@ struct SkewTTransformTests {
         #expect(abs(pt.x - x) < 0.001)
         #expect(abs(pt.y - y) < 0.001)
     }
+
+    // MARK: - Skew-factor aspect clamp
+
+    /// Horizontal span of one isotherm from the bottom to the top of the plot,
+    /// i.e. `skewFactor * plotWidth`. A clean readout of the effective skew.
+    private func isothermSpan(_ t: SkewTTransform) -> CGFloat {
+        t.temperatureToX(0, atPressure: t.config.pTop)
+            - t.temperatureToX(0, atPressure: t.config.pBottom)
+    }
+
+    @Test("Tall/narrow plot clamps the skew to the square-aspect value")
+    func tallPlotClampsSkew() {
+        // height ≫ width (an embedded iPhone-portrait Skew-T). The unclamped
+        // factor would be tan45·h/w ≈ 2.5; the clamp pins it at 1.0, so an
+        // isotherm spans exactly the plot width from bottom to top.
+        let t = SkewTTransform(size: CGSize(width: 280, height: 480))
+        #expect(abs(isothermSpan(t) - t.plotArea.width) < 1)
+    }
+
+    @Test("Wide plot keeps the true visual 45° skew (clamp inactive)")
+    func widePlotKeepsVisualAngle() {
+        // width > height → tan45·h/w < 1, below the cap. A true 45° isotherm
+        // spans the plot *height* from bottom to top.
+        let t = SkewTTransform(size: CGSize(width: 800, height: 400))
+        #expect(abs(isothermSpan(t) - t.plotArea.height) < 1)
+    }
+
+    @Test("Cold upper-air data stays on the chart on a tall plot")
+    func coldUpperAirStaysOnChart() {
+        // The regression: without the clamp, cold air aloft skewed off the right
+        // edge of a tall/narrow plot.
+        let t = SkewTTransform(size: CGSize(width: 280, height: 480))
+        let x = t.temperatureToX(-50, atPressure: 250)
+        #expect(x >= t.plotArea.left)
+        #expect(x <= t.plotArea.right)
+    }
+
+    @Test("maxSkewFactor is the square-aspect value")
+    func maxSkewFactorValue() {
+        #expect(SkewTTransform.maxSkewFactor == 1.0)
+    }
 }
